@@ -27,3 +27,9 @@ def compare_faces(image_path_1: str, image_path_2: str) -> MatchResult:
     distance = face_recognition.face_distance([encodings_1[0]], encodings_2[0])[0]
     return MatchResult(is_match=bool(distance <= DISTANCE_THRESHOLD), distance=float(distance))
 
+def distance_to_confidence(distance: float) -> int:
+    """Roughly converts a face distance into a 0-100% confidence-style number.
+    Not a calibrated probability — just a friendlier way to show 'how close' the match was."""
+    confidence = (1 - distance) * 100
+    return max(0, min(100, round(confidence)))
+

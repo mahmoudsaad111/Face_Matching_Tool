@@ -44,3 +44,9 @@ Thumbs.db
 *.db
 *.sqlite
 *.sqlite3
+
+# Test images (downloaded via get_test_images.py, not needed in version control)
+test_images/
+
+# PyInstaller build artifacts
+*.spec

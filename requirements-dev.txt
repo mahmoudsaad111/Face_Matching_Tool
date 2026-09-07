@@ -1,0 +1,6 @@
+# Extra dependencies needed only for running tests / building the .exe
+# (not required to just run the app itself — see requirements.txt for that)
+-r requirements.txt
+pytest
+scikit-learn
+pyinstaller

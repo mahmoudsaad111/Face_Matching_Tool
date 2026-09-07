@@ -1,8 +1,9 @@
 import tkinter as tk
 import customtkinter as ctk
+import threading
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
-from face_matcher import compare_faces
+from face_matcher import compare_faces, distance_to_confidence
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image as PILImage
 
@@ -10,6 +11,7 @@ from PIL import Image as PILImage
 
 class CTkDnD(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self, *args, **kwargs):
+        
         super().__init__(*args, **kwargs)
         self.TkdndVersion = TkinterDnD._require(self)
 
@@ -29,8 +31,10 @@ class FaceMatchApp:
         frame.grid_rowconfigure(0, weight=1)
         frame.grid_rowconfigure(1, weight=0)
         frame.grid_rowconfigure(2, weight=0)
+        
 
         self.preview_labels = {}
+        self.file_labels = {}
         blank = PILImage.new("RGBA", (1, 1), (0, 0, 0, 0))
         self._blank_image = ctk.CTkImage(light_image=blank, dark_image=blank, size=(1, 1))
         for i, key in enumerate(["face1", "face2"]):
@@ -63,6 +67,15 @@ class FaceMatchApp:
             label.dnd_bind('<<Drop>>', lambda e, k=key: self._on_drop(e, k))
 
             self.preview_labels[key] = label
+
+            file_label = ctk.CTkLabel(
+                card,
+                text="No file selected",
+                font=ctk.CTkFont(size=11),
+                text_color="#9ca3af",
+            )
+            file_label.pack(pady=(0, 12))
+            self.file_labels[key] = file_label
 
         self.compare_button = ctk.CTkButton(
             frame,
@@ -100,6 +113,7 @@ class FaceMatchApp:
         )
         self.result_label.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 5))
 
+
     def _select_image(self, key):
         path = filedialog.askopenfilename(
             filetypes=[("Image files", "*.jpg *.jpeg *.png")]
@@ -115,6 +129,10 @@ class FaceMatchApp:
         self.image_paths[key] = path
         self._show_preview(key, path)
         self._update_compare_button_state()
+        self.result_label.configure(text="", fg_color="transparent")
+
+        filename = path.replace("\\", "/").split("/")[-1]
+        self.file_labels[key].configure(text=filename, text_color="#374151")
 
     def _on_drop(self, event, key):
         paths = self.root.tk.splitlist(event.data)
@@ -128,6 +146,7 @@ class FaceMatchApp:
             label = self.preview_labels[key]
             label.configure(image=self._blank_image, text="+")
             label.image = self._blank_image
+            self.file_labels[key].configure(text="No file selected", text_color="#9ca3af")
         self._update_compare_button_state()
         self.result_label.configure(text="", fg_color="transparent")
 
@@ -144,7 +163,11 @@ class FaceMatchApp:
             ].image = ctk_image  # keep a reference so it isn't garbage-collected
         except Exception as e:
             print("REAL ERROR:", e)
-            messagebox.showerror("Invalid image", "Could not open that image file.")
+            face_label = "Face 1" if key == "face1" else "Face 2"
+            messagebox.showerror(
+                "Invalid image",
+                f"Could not open the image for {face_label}."
+            )
             self.image_paths[key] = None
 
     def _update_compare_button_state(self):
@@ -158,20 +181,39 @@ class FaceMatchApp:
                 state="disabled", fg_color="#9ca3af", hover_color="#9ca3af"
             )
 
-    def _compare(self):
-        self._set_result("Comparing...", bg="#e5e7eb", fg="#374151")
-        self.root.update_idletasks()
 
-        result = compare_faces(self.image_paths["face1"], self.image_paths["face2"])
+    # threading to avoid freezing the GUI during comparison
+    def _compare(self):
+        self.compare_button.configure(state="disabled", text="Comparing...")
+        self.reset_button.configure(state="disabled")
+        self._set_result("Comparing...", bg="#e5e7eb", fg="#374151")
+
+        thread = threading.Thread(
+            target=self._run_compare_in_background,
+            args=(self.image_paths["face1"], self.image_paths["face2"]),
+            daemon=True,
+        )
+        thread.start()
+
+    def _run_compare_in_background(self, path1, path2):
+        result = compare_faces(path1, path2)
+        self.root.after(0, self._on_compare_finished, result)
+
+    def _on_compare_finished(self, result):
+        self.compare_button.configure(text="Compare")
+        self.reset_button.configure(state="normal")
+        self._update_compare_button_state()
 
         if result.error:
             self._set_result(f"⚠ {result.error}", bg="#f59e0b", fg="white")
             return
 
+        confidence = distance_to_confidence(result.distance)
+
         if result.is_match:
-            self._set_result("✓ MATCH", bg="#16a34a", fg="white")
+            self._set_result(f"✓ MATCH  ·  {confidence}% confidence", bg="#16a34a", fg="white")
         else:
-            self._set_result("✕ NO MATCH", bg="#dc2626", fg="white")
+            self._set_result(f"✕ NO MATCH  ·  {confidence}% confidence", bg="#dc2626", fg="white")
 
     def _set_result(self, text, bg, fg):
         self.result_label.configure(text=text, fg_color=bg, text_color=fg)
