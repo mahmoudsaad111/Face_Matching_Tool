@@ -6,7 +6,7 @@ A simple desktop application that compares two facial images and reports whether
 - Select or drag-and-drop two face images (Face 1 and Face 2)
 - Side-by-side image preview with filenames shown
 - Face detection and comparison using the `face_recognition` library
-- Clear Match / No Match result, with a confidence percentage indicating how close the match was
+- Clear Match / No Match result, with a similarity percentage indicating how close the two faces were
 - Comparison runs in the background so the window never freezes
 - Reset button to clear both images and start over
 - Basic error handling for unreadable images, images with no detectable face, and missing files
@@ -46,32 +46,28 @@ Workflow:
 1. Click or drag an image into the "Face 1" box.
 2. Click or drag an image into the "Face 2" box.
 3. Click **Compare**.
-4. The result (**MATCH** or **NO MATCH**, with a confidence percentage) is shown below the buttons.
+4. The result (**MATCH** or **NO MATCH**, with a similarity percentage) is shown below the buttons.
 5. Click **Reset** to clear both images and start over.
 
 ## Notes
 - Supported image formats: `.jpg`, `.jpeg`, `.png`
 - If no face is detected in an image, or the file can't be opened, an error message is shown instead of a result, naming which face (Face 1 or Face 2) caused the issue.
-- The matching threshold is set in `face_matcher.py` (`DISTANCE_THRESHOLD = 0.6`), which is the standard default recommended by the `face_recognition` library.
-- The confidence percentage is a simplified indicator derived from the face-distance score, not a calibrated statistical probability — it's meant to give a general sense of how close a match was, not a precise likelihood.
+- The matching threshold is set in `face_matcher.py` (`DISTANCE_THRESHOLD = 0.6`). This is `dlib`'s benchmarked default cutoff for face verification on the LFW (Labeled Faces in the Wild) dataset, reported at roughly 99.38% accuracy — it isn't an arbitrary value, it's the standard threshold recommended for this exact library and use case.
+- The similarity percentage shows how close the two face encodings are to each other, derived directly from the same distance score used for the Match/No Match decision. It is not a calibrated statistical probability that the match is correct — it's a simplified indicator of closeness, not a confidence measure.
 
 ## Running Tests
 
-Unit tests use `pytest` and real sample photos from the public LFW (Labeled Faces in the Wild) research dataset.
+Unit tests use `pytest` and real sample photos from the public LFW (Labeled Faces in the Wild) research dataset. Test images are generated automatically the first time the tests run (via `get_test_images.py`), including a synthetic no-face image — no manual setup required.
 
 1. Install dev dependencies:
    ```
    pip install -r requirements-dev.txt
    ```
-2. Generate test images (only needs to be run once; downloads and caches the dataset):
-   ```
-   python get_test_images.py
-   ```
-3. Add one additional file manually: `test_images/no_face.jpg` — any image with no face in it (a landscape, a screenshot, etc.), used to test the "no face detected" error path.
-4. Run the tests:
+2. Run the tests:
    ```
    pytest test_face_matcher.py -v
    ```
+   The first run will download and cache the LFW dataset, which may take a minute; subsequent runs reuse the cached data and generated images.
 
 ## Packaged Executable
 
@@ -94,7 +90,7 @@ The built executable will be in the `dist/` folder.
 face-matching-tool/
 ├── gui.py                  # Desktop GUI application
 ├── face_matcher.py         # Face detection and comparison logic
-├── get_test_images.py      # Downloads sample photos for testing
+├── get_test_images.py      # Generates sample photos for testing
 ├── test_face_matcher.py    # Unit tests
 ├── requirements.txt        # Runtime dependencies
 ├── requirements-dev.txt    # Additional dependencies for testing/packaging

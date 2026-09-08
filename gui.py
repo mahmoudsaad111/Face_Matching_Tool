@@ -2,10 +2,9 @@ import tkinter as tk
 import customtkinter as ctk
 import threading
 from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk
-from face_matcher import compare_faces, distance_to_confidence
+from PIL import Image
+from face_matcher import compare_faces, distance_to_similarity
 from tkinterdnd2 import DND_FILES, TkinterDnD
-from PIL import Image as PILImage
 
 
 
@@ -35,7 +34,7 @@ class FaceMatchApp:
 
         self.preview_labels = {}
         self.file_labels = {}
-        blank = PILImage.new("RGBA", (1, 1), (0, 0, 0, 0))
+        blank = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
         self._blank_image = ctk.CTkImage(light_image=blank, dark_image=blank, size=(1, 1))
         for i, key in enumerate(["face1", "face2"]):
             card = ctk.CTkFrame(frame, corner_radius=12, border_width=2, border_color="#d1d5db")
@@ -162,12 +161,7 @@ class FaceMatchApp:
                 key
             ].image = ctk_image  # keep a reference so it isn't garbage-collected
         except Exception as e:
-            print("REAL ERROR:", e)
-            face_label = "Face 1" if key == "face1" else "Face 2"
-            messagebox.showerror(
-                "Invalid image",
-                f"Could not open the image for {face_label}."
-            )
+            print(f"[gui] Failed to load image for {key}: {e}")
             self.image_paths[key] = None
 
     def _update_compare_button_state(self):
@@ -208,12 +202,12 @@ class FaceMatchApp:
             self._set_result(f"⚠ {result.error}", bg="#f59e0b", fg="white")
             return
 
-        confidence = distance_to_confidence(result.distance)
+        similarity = distance_to_similarity(result.distance)
 
         if result.is_match:
-            self._set_result(f"✓ MATCH  ·  {confidence}% confidence", bg="#16a34a", fg="white")
+            self._set_result(f"✓ MATCH  ·  {similarity}% similarity", bg="#16a34a", fg="white")
         else:
-            self._set_result(f"✕ NO MATCH  ·  {confidence}% confidence", bg="#dc2626", fg="white")
+            self._set_result(f"✕ NO MATCH  ·  {similarity}% similarity", bg="#dc2626", fg="white")
 
     def _set_result(self, text, bg, fg):
         self.result_label.configure(text=text, fg_color=bg, text_color=fg)

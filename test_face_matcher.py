@@ -1,6 +1,8 @@
 import os
 import glob
-from face_matcher import compare_faces, distance_to_confidence
+from PIL import Image
+from face_matcher import compare_faces, distance_to_similarity
+from get_test_images import generate_test_images
 
 TEST_DIR = os.path.join(os.path.dirname(__file__), "test_images")
 
@@ -15,7 +17,18 @@ def photos_for_person(person_number):
     return sorted(glob.glob(pattern))
 
 
-# ---- Real face pairs, pulled dynamically from whatever the LFW script generated ----
+def ensure_test_data_exists():
+    """Generates test images automatically if they aren't already there."""
+    if len(photos_for_person(1)) < 2 or len(photos_for_person(2)) < 1:
+        print("\nTest images not found — generating them now (this may take a minute)...")
+        generate_test_images()
+
+    no_face_path = path("no_face.jpg")
+    if not os.path.exists(no_face_path):
+        Image.new("RGB", (200, 200), color=(120, 120, 120)).save(no_face_path)
+
+
+ensure_test_data_exists()
 
 person1_photos = photos_for_person(1)
 person2_photos = photos_for_person(2)
@@ -51,20 +64,20 @@ def test_nonexistent_file_returns_error():
     assert result.error is not None
 
 
-def test_confidence_score_is_within_valid_range():
+def test_similarity_score_is_within_valid_range():
     result = compare_faces(person1_photos[0], person1_photos[1])
-    confidence = distance_to_confidence(result.distance)
-    assert 0 <= confidence <= 100
+    similarity = distance_to_similarity(result.distance)
+    assert 0 <= similarity <= 100
 
 
-def test_matching_pair_has_higher_confidence_than_non_matching_pair():
+def test_matching_pair_has_higher_similarity_than_non_matching_pair():
     same_person = compare_faces(person1_photos[0], person1_photos[1])
     different_people = compare_faces(person1_photos[0], person2_photos[0])
 
-    confidence_same = distance_to_confidence(same_person.distance)
-    confidence_different = distance_to_confidence(different_people.distance)
+    similarity_same = distance_to_similarity(same_person.distance)
+    similarity_different = distance_to_similarity(different_people.distance)
 
-    assert confidence_same > confidence_different
+    assert similarity_same > similarity_different
 
 
 def test_all_available_people_are_distinguishable():

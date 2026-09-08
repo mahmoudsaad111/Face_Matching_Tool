@@ -2,13 +2,16 @@ import face_recognition
 from dataclasses import dataclass
 
 
-DISTANCE_THRESHOLD = 0.6  #  threshold for face matching
+DISTANCE_THRESHOLD = 0.6  # dlib's benchmarked default threshold on the LFW dataset (~99.38% accuracy)
+
+# dataclass to hold the result of a face match
 @dataclass
 class MatchResult:
     is_match: bool
     distance: float
     error: str | None = None
 
+# function to compare two face images and return a MatchResult
 def compare_faces(image_path_1: str, image_path_2: str) -> MatchResult:
     try:
         image_1 = face_recognition.load_image_file(image_path_1)
@@ -27,9 +30,9 @@ def compare_faces(image_path_1: str, image_path_2: str) -> MatchResult:
     distance = face_recognition.face_distance([encodings_1[0]], encodings_2[0])[0]
     return MatchResult(is_match=bool(distance <= DISTANCE_THRESHOLD), distance=float(distance))
 
-def distance_to_confidence(distance: float) -> int:
-    """Roughly converts a face distance into a 0-100% confidence-style number.
-    Not a calibrated probability — just a friendlier way to show 'how close' the match was."""
-    confidence = (1 - distance) * 100
-    return max(0, min(100, round(confidence)))
+
+# function to convert distance to similarity score (0-100)
+def distance_to_similarity(distance: float) -> int:
+    similarity = (1 - distance) * 100
+    return max(0, min(100, round(similarity)))
 
