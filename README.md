@@ -6,10 +6,10 @@ A simple desktop application that compares two facial images and reports whether
 - Select or drag-and-drop two face images (Face 1 and Face 2)
 - Side-by-side image preview with filenames shown
 - Face detection and comparison using the `face_recognition` library
-- Clear Match / No Match result, with a similarity percentage indicating how close the two faces were
+- Clear Match / No Match result, shown alongside the raw face distance score
 - Comparison runs in the background so the window never freezes
 - Reset button to clear both images and start over
-- Basic error handling for unreadable images, images with no detectable face, and missing files
+- Basic error handling for unreadable images, images with no detectable face, images with more than one detectable face, and missing files
 - Also available as a standalone Windows executable (no Python installation required) — see **Packaged Executable** below
 
 ## Requirements
@@ -39,21 +39,21 @@ A simple desktop application that compares two facial images and reports whether
 
 Run the app:
 ```
-python gui.py
+python main.py
 ```
 
 Workflow:
 1. Click or drag an image into the "Face 1" box.
 2. Click or drag an image into the "Face 2" box.
 3. Click **Compare**.
-4. The result (**MATCH** or **NO MATCH**, with a similarity percentage) is shown below the buttons.
+4. The result (**MATCH** or **NO MATCH**, with the underlying distance score) is shown below the buttons.
 5. Click **Reset** to clear both images and start over.
 
 ## Notes
 - Supported image formats: `.jpg`, `.jpeg`, `.png`
-- If no face is detected in an image, or the file can't be opened, an error message is shown instead of a result, naming which face (Face 1 or Face 2) caused the issue.
+- If no face is detected in an image, more than one face is detected, or the file can't be opened, an error message is shown instead of a result, naming which face (Face 1 or Face 2) caused the issue.
 - The matching threshold is set in `face_matcher.py` (`DISTANCE_THRESHOLD = 0.6`). This is `dlib`'s benchmarked default cutoff for face verification on the LFW (Labeled Faces in the Wild) dataset, reported at roughly 99.38% accuracy — it isn't an arbitrary value, it's the standard threshold recommended for this exact library and use case.
-- The similarity percentage shows how close the two face encodings are to each other, derived directly from the same distance score used for the Match/No Match decision. It is not a calibrated statistical probability that the match is correct — it's a simplified indicator of closeness, not a confidence measure.
+- The distance score shown alongside the result is the raw output from `face_recognition`'s comparison: lower values mean the two faces are more similar, and a distance at or below the threshold (0.6 by default) is classified as a Match.
 
 ## Running Tests
 
@@ -75,7 +75,7 @@ A standalone Windows `.exe` can be built with PyInstaller so the app can run wit
 
 ```
 pip install -r requirements-dev.txt
-pyinstaller --onefile --windowed --name "FaceMatchingTool" --add-data "<path-to-face_recognition_models-folder>;face_recognition_models" gui.py
+pyinstaller --onefile --windowed --name "FaceMatchingTool" --add-data "<path-to-face_recognition_models-folder>;face_recognition_models" main.py
 ```
 
 Find the `face_recognition_models` folder path with:
@@ -88,6 +88,7 @@ The built executable will be in the `dist/` folder.
 ## Project Structure
 ```
 face-matching-tool/
+├── main.py                 # Application entry point
 ├── gui.py                  # Desktop GUI application
 ├── face_matcher.py         # Face detection and comparison logic
 ├── get_test_images.py      # Generates sample photos for testing

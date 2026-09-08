@@ -1,7 +1,7 @@
 import os
 import glob
 from PIL import Image
-from face_matcher import compare_faces, distance_to_similarity
+from face_matcher import compare_faces
 from get_test_images import generate_test_images
 
 TEST_DIR = os.path.join(os.path.dirname(__file__), "test_images")
@@ -64,20 +64,10 @@ def test_nonexistent_file_returns_error():
     assert result.error is not None
 
 
-def test_similarity_score_is_within_valid_range():
-    result = compare_faces(person1_photos[0], person1_photos[1])
-    similarity = distance_to_similarity(result.distance)
-    assert 0 <= similarity <= 100
-
-
-def test_matching_pair_has_higher_similarity_than_non_matching_pair():
+def test_matching_pair_has_lower_distance_than_non_matching_pair():
     same_person = compare_faces(person1_photos[0], person1_photos[1])
     different_people = compare_faces(person1_photos[0], person2_photos[0])
-
-    similarity_same = distance_to_similarity(same_person.distance)
-    similarity_different = distance_to_similarity(different_people.distance)
-
-    assert similarity_same > similarity_different
+    assert same_person.distance < different_people.distance
 
 
 def test_all_available_people_are_distinguishable():

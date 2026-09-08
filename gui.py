@@ -1,117 +1,215 @@
-import tkinter as tk
-import customtkinter as ctk
 import threading
+import tkinter.font as tkfont
 from tkinter import filedialog, messagebox
+
+import customtkinter as ctk
 from PIL import Image
-from face_matcher import compare_faces, distance_to_similarity
 from tkinterdnd2 import DND_FILES, TkinterDnD
 
+from face_matcher import MatchResult, compare_faces
+
+ctk.set_appearance_mode("light")
+ctk.set_default_color_theme("blue")
+
+# --- Calm analysis palette: warm neutral canvas with a teal action color ---
+COLOR_BG = "#f7f8f6"
+COLOR_CARD_BG = "#ffffff"
+COLOR_CARD_BORDER = "#dfe5e1"
+COLOR_ACCENT = "#167d78"
+COLOR_ACCENT_HOVER = "#0f625e"
+COLOR_ACCENT_LIGHT = "#e7f3f1"
+COLOR_ACCENT_DISABLED = "#5f8984"
+COLOR_TEXT_PRIMARY = "#17211f"
+COLOR_TEXT_SECONDARY = "#52605c"
+COLOR_TEXT_MUTED = "#899691"
+COLOR_SUCCESS = "#16805c"
+COLOR_DANGER = "#c94b4b"
+COLOR_WARNING = "#b7791f"
+
+FONT_FAMILY = "Segoe UI"
 
 
 class CTkDnD(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self, *args, **kwargs):
-        
+
         super().__init__(*args, **kwargs)
         self.TkdndVersion = TkinterDnD._require(self)
+
 
 class FaceMatchApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Face Matching Mini Tool")
+        self.root.configure(fg_color=COLOR_BG)
+        self.root.geometry("760x660")
+        self.root.minsize(680, 600)
         self.image_paths = {"face1": None, "face2": None}
         self._build_ui()
 
-
     def _build_ui(self):
         frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        frame.pack(fill="both", expand=True, padx=20, pady=20)
+        frame.pack(fill="both", expand=True, padx=28, pady=28)
+
         frame.grid_columnconfigure(0, weight=1)
         frame.grid_columnconfigure(1, weight=1)
-        frame.grid_rowconfigure(0, weight=1)
-        frame.grid_rowconfigure(1, weight=0)
-        frame.grid_rowconfigure(2, weight=0)
-        
+
+        frame.grid_rowconfigure(0, weight=0)  # Title
+        frame.grid_rowconfigure(1, weight=0)  # Subtitle
+        frame.grid_rowconfigure(2, weight=1)  # Image cards
+        frame.grid_rowconfigure(3, weight=0)  # Buttons
+        frame.grid_rowconfigure(4, weight=0)  # Result
+        frame.grid_rowconfigure(5, weight=0)  # Status
+
+        # Title
+        title = ctk.CTkLabel(
+            frame,
+            text="Face Matching",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=26, weight="bold"),
+            text_color=COLOR_TEXT_PRIMARY,
+        )
+        title.grid(row=0, column=0, columnspan=2, pady=(0, 4))
+
+        # Subtitle
+        subtitle = ctk.CTkLabel(
+            frame,
+            text="Select two face images to compare",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            text_color=COLOR_TEXT_SECONDARY,
+        )
+        subtitle.grid(row=1, column=0, columnspan=2, pady=(0, 22))
 
         self.preview_labels = {}
         self.file_labels = {}
+        self._default_file_label_width = 270
+
         blank = Image.new("RGBA", (1, 1), (0, 0, 0, 0))
-        self._blank_image = ctk.CTkImage(light_image=blank, dark_image=blank, size=(1, 1))
+
+        self._blank_image = ctk.CTkImage(
+            light_image=blank,
+            dark_image=blank,
+            size=(1, 1),
+        )
+
+        # Keep the upload areas visually quiet so the selected images carry the focus.
         for i, key in enumerate(["face1", "face2"]):
-            card = ctk.CTkFrame(frame, corner_radius=12, border_width=2, border_color="#d1d5db")
-            card.grid(row=0, column=i, padx=10, sticky="nsew")
+            card = ctk.CTkFrame(
+                frame,
+                corner_radius=10,
+                border_width=1,
+                border_color=COLOR_CARD_BORDER,
+                fg_color=COLOR_CARD_BG,
+            )
+            card.grid(row=2, column=i, padx=8, pady=(0, 6), sticky="nsew")
 
             caption = ctk.CTkLabel(
                 card,
                 text=f"Face {i + 1}",
-                font=ctk.CTkFont(size=13, weight="bold"),
-                text_color="#6b7280",
+                font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+                text_color=COLOR_TEXT_SECONDARY,
             )
-            caption.pack(pady=(12, 4))
+            caption.pack(pady=(16, 6))
 
             label = ctk.CTkLabel(
                 card,
-                text="+",
+                text="Click or drop an image",
                 width=300,
-                height=280,
-                fg_color="#f3f4f6",
+                height=270,
                 corner_radius=8,
-                text_color="#9ca3af",
-                font=ctk.CTkFont(size=48, weight="bold"),
+                fg_color=COLOR_ACCENT_LIGHT,
+                text_color=COLOR_ACCENT,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
                 cursor="hand2",
             )
-            label.pack(padx=12, pady=(0, 12))
-            label.bind("<Button-1>", lambda e, k=key: self._select_image(k))
+            label.pack(padx=16, pady=(0, 14))
+
+            label.bind(
+                "<Button-1>",
+                lambda e, k=key: self._select_image(k),
+            )
 
             label.drop_target_register(DND_FILES)
-            label.dnd_bind('<<Drop>>', lambda e, k=key: self._on_drop(e, k))
+
+            label.dnd_bind(
+                "<<Drop>>",
+                lambda e, k=key: self._on_drop(e, k),
+            )
+
+            label.bind(
+                "<Enter>",
+                lambda e, k=key: self.preview_labels[k].configure(
+                    border_width=2, border_color=COLOR_ACCENT
+                ) if not self.image_paths[k] else None,
+            )
+            label.bind(
+                "<Leave>",
+                lambda e, k=key: self.preview_labels[k].configure(
+                    border_width=0
+                ) if not self.image_paths[k] else None,
+            )
 
             self.preview_labels[key] = label
 
             file_label = ctk.CTkLabel(
                 card,
                 text="No file selected",
-                font=ctk.CTkFont(size=11),
-                text_color="#9ca3af",
+                width=self._default_file_label_width,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+                text_color=COLOR_TEXT_MUTED,
             )
-            file_label.pack(pady=(0, 12))
+            file_label.pack(pady=(0, 16))
+
             self.file_labels[key] = file_label
 
+        # Compare button
         self.compare_button = ctk.CTkButton(
             frame,
-            text="Compare",
+            text="Compare faces",
             state="disabled",
-            corner_radius=8,
-            height=42,
-            font=ctk.CTkFont(size=15, weight="bold"),
-            fg_color="#9ca3af",
-            hover_color="#9ca3af",
+            corner_radius=6,
+            height=44,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            fg_color="#5f8984",
+            text_color="#ffffff",
+            hover_color="#0f625e",
             command=self._compare,
         )
-        self.compare_button.grid(row=1, column=0, pady=15, padx=(0, 5), sticky="ew")
+        self.compare_button.grid(row=3, column=0, pady=(22, 0), padx=(0, 8), sticky="ew")
+
+        # Reset button
         self.reset_button = ctk.CTkButton(
-                frame,
-                text="Reset",
-                corner_radius=8,
-                height=42,
-                font=ctk.CTkFont(size=14),
-                fg_color="transparent",
-                border_width=1,
-                border_color="#d1d5db",
-                text_color="#374151",
-                hover_color="#f3f4f6",
-                command=self._reset,
-            )
-        self.reset_button.grid(row=1, column=1, pady=15, padx=(5, 0), sticky="ew")
+            frame,
+            text="Reset",
+            corner_radius=6,
+            height=44,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            fg_color="#edf3f1",
+            border_width=1,
+            border_color="#b8c5c1",
+            text_color="#36514c",
+            hover_color="#dceae6",
+            command=self._reset,
+        )
+        self.reset_button.grid(row=3, column=1, pady=(22, 0), padx=(8, 0), sticky="ew")
+
+        # Result banner uses color only after a comparison has completed.
         self.result_label = ctk.CTkLabel(
             frame,
             text="",
-            font=ctk.CTkFont(size=16, weight="bold"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
             corner_radius=8,
-            height=44,
+            height=46,
             fg_color="transparent",
         )
-        self.result_label.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(0, 5))
+        self.result_label.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(16, 4))
 
+        # Supported formats
+        self.status_label = ctk.CTkLabel(
+            frame,
+            text="Supported formats: JPG, JPEG, PNG",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=10),
+            text_color=COLOR_TEXT_MUTED,
+        )
+        self.status_label.grid(row=5, column=0, columnspan=2, pady=(4, 0))
 
     def _select_image(self, key):
         path = filedialog.askopenfilename(
@@ -123,15 +221,25 @@ class FaceMatchApp:
 
     def _set_image(self, key, path):
         if not path.lower().endswith((".jpg", ".jpeg", ".png")):
-            messagebox.showerror("Invalid file", "Please use a .jpg, .jpeg, or .png image.")
+            messagebox.showerror(
+                "Invalid file",
+                "Please use a .jpg, .jpeg, or .png image."
+            )
             return
+
+        if not self._show_preview(key, path):
+            return
+
         self.image_paths[key] = path
-        self._show_preview(key, path)
         self._update_compare_button_state()
         self.result_label.configure(text="", fg_color="transparent")
 
         filename = path.replace("\\", "/").split("/")[-1]
-        self.file_labels[key].configure(text=filename, text_color="#374151")
+        label_width = self.file_labels[key].cget("width")
+        self.file_labels[key].configure(
+            text=self._truncate_filename(filename, label_width),
+            text_color=COLOR_TEXT_SECONDARY
+        )
 
     def _on_drop(self, event, key):
         paths = self.root.tk.splitlist(event.data)
@@ -143,44 +251,78 @@ class FaceMatchApp:
         self.image_paths = {"face1": None, "face2": None}
         for key in ["face1", "face2"]:
             label = self.preview_labels[key]
-            label.configure(image=self._blank_image, text="+")
+            label.configure(image=self._blank_image, text="Click or drop an image")
             label.image = self._blank_image
-            self.file_labels[key].configure(text="No file selected", text_color="#9ca3af")
+            self.file_labels[key].configure(
+                text="No file selected",
+                width=self._default_file_label_width,
+                text_color=COLOR_TEXT_MUTED,
+            )
         self._update_compare_button_state()
         self.result_label.configure(text="", fg_color="transparent")
 
     def _show_preview(self, key, path):
         try:
             img = Image.open(path)
-            img.thumbnail((280, 280))
+            img.thumbnail((270, 270))
 
-            ctk_image = ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
+            ctk_image = ctk.CTkImage(
+                light_image=img,
+                dark_image=img,
+                size=img.size
+            )
 
-            self.preview_labels[key].configure(image=ctk_image, text="")
-            self.preview_labels[
-                key
-            ].image = ctk_image  # keep a reference so it isn't garbage-collected
-        except Exception as e:
-            print(f"[gui] Failed to load image for {key}: {e}")
-            self.image_paths[key] = None
+            self.file_labels[key].configure(width=img.width)
+
+            self.preview_labels[key].configure(
+                image=ctk_image,
+                text=""
+            )
+            self.preview_labels[key].image = ctk_image
+
+            return True
+
+        except Exception:
+            messagebox.showerror(
+                "Invalid image",
+                "The selected file could not be opened as a valid image."
+            )
+
+            return False
+
+    @staticmethod
+    def _truncate_filename(filename, max_width):
+        font = tkfont.Font(family=FONT_FAMILY, size=11)
+        if font.measure(filename) <= max_width:
+            return filename
+
+        suffix = "..."
+        truncated = filename
+        while truncated and font.measure(truncated + suffix) > max_width:
+            truncated = truncated[:-1]
+
+        return truncated + suffix if truncated else suffix
 
     def _update_compare_button_state(self):
         ready = all(self.image_paths.values())
         if ready:
             self.compare_button.configure(
-                state="normal", fg_color="#4f46e5", hover_color="#4338ca"
+                state="normal", fg_color=COLOR_ACCENT, text_color="#ffffff", hover_color=COLOR_ACCENT_HOVER
             )
         else:
             self.compare_button.configure(
-                state="disabled", fg_color="#9ca3af", hover_color="#9ca3af"
+                state="disabled",
+                fg_color=COLOR_ACCENT_DISABLED,
+                text_color="#ffffff",
+                hover_color=COLOR_ACCENT_DISABLED,
+                font=ctk.CTkFont(family=FONT_FAMILY, size=15, weight="bold"),
             )
-
 
     # threading to avoid freezing the GUI during comparison
     def _compare(self):
         self.compare_button.configure(state="disabled", text="Comparing...")
         self.reset_button.configure(state="disabled")
-        self._set_result("Comparing...", bg="#e5e7eb", fg="#374151")
+        self._set_result("Comparing...", bg=COLOR_CARD_BORDER, fg=COLOR_TEXT_SECONDARY)
 
         thread = threading.Thread(
             target=self._run_compare_in_background,
@@ -190,43 +332,36 @@ class FaceMatchApp:
         thread.start()
 
     def _run_compare_in_background(self, path1, path2):
-        result = compare_faces(path1, path2)
+        try:
+            result = compare_faces(path1, path2)
+        except Exception:
+            result = MatchResult(
+                is_match=False,
+                distance=1.0,
+                error="An unexpected error occurred during comparison.",
+            )
+
         self.root.after(0, self._on_compare_finished, result)
 
     def _on_compare_finished(self, result):
-        self.compare_button.configure(text="Compare")
+        self.compare_button.configure(text="Compare faces")
         self.reset_button.configure(state="normal")
         self._update_compare_button_state()
 
         if result.error:
-            self._set_result(f"⚠ {result.error}", bg="#f59e0b", fg="white")
+            self._set_result(f"⚠  {result.error}", bg=COLOR_WARNING, fg="white")
             return
 
-        similarity = distance_to_similarity(result.distance)
-
         if result.is_match:
-            self._set_result(f"✓ MATCH  ·  {similarity}% similarity", bg="#16a34a", fg="white")
+            self._set_result(
+                f"✓  MATCH   ·   Distance: {result.distance:.3f}", bg=COLOR_SUCCESS, fg="white"
+            )
         else:
-            self._set_result(f"✕ NO MATCH  ·  {similarity}% similarity", bg="#dc2626", fg="white")
+            self._set_result(
+                f"✕  NO MATCH   ·   Distance: {result.distance:.3f}",
+                bg=COLOR_DANGER,
+                fg="white",
+            )
 
     def _set_result(self, text, bg, fg):
         self.result_label.configure(text=text, fg_color=bg, text_color=fg)
-
-
-if __name__ == "__main__":
-    ctk.set_appearance_mode("light")
-    ctk.set_default_color_theme("blue")
-
-    root = CTkDnD()
-    app = FaceMatchApp(root)
-
-    window_width, window_height = 700, 520
-    root.update_idletasks()  # forces geometry calculations before we read screen size
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width // 2) - (window_width // 2)
-    y = (screen_height // 2) - (window_height // 2)
-    root.geometry(f"{window_width}x{window_height}+{x}+{y}")
-    root.minsize(window_width, window_height)
-
-    root.mainloop()

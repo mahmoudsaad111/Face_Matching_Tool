@@ -22,17 +22,22 @@ def compare_faces(image_path_1: str, image_path_2: str) -> MatchResult:
     encodings_1 = face_recognition.face_encodings(image_1)
     encodings_2 = face_recognition.face_encodings(image_2)
 
-    if not encodings_1:
-        return MatchResult(is_match=False, distance=1.0, error="No face detected in Face 1.")
-    if not encodings_2:
-        return MatchResult(is_match=False, distance=1.0, error="No face detected in Face 2.")
+    # Check for errors in face detection since the task requires exactly one face in each image so multiple faces or no faces should be treated as errors.
+    if len(encodings_1) == 0:
+        return MatchResult(False, 1.0, "No face detected in Face 1.")
+
+    if len(encodings_1) > 1:
+        return MatchResult(False, 1.0, "Multiple faces detected in Face 1.")
+
+    if len(encodings_2) == 0:
+        return MatchResult(False, 1.0, "No face detected in Face 2.")
+
+    if len(encodings_2) > 1:
+        return MatchResult(False, 1.0, "Multiple faces detected in Face 2.")
 
     distance = face_recognition.face_distance([encodings_1[0]], encodings_2[0])[0]
     return MatchResult(is_match=bool(distance <= DISTANCE_THRESHOLD), distance=float(distance))
 
 
-# function to convert distance to similarity score (0-100)
-def distance_to_similarity(distance: float) -> int:
-    similarity = (1 - distance) * 100
-    return max(0, min(100, round(similarity)))
+
 
