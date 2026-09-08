@@ -8,10 +8,11 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 
 from face_matcher import MatchResult, compare_faces
 
+# default appearance and theme settings for the application
 ctk.set_appearance_mode("light")
 ctk.set_default_color_theme("blue")
 
-# --- Calm analysis palette: warm neutral canvas with a teal action color ---
+# Color and Font Constants
 COLOR_BG = "#f7f8f6"
 COLOR_CARD_BG = "#ffffff"
 COLOR_CARD_BORDER = "#dfe5e1"
@@ -90,7 +91,7 @@ class FaceMatchApp:
             size=(1, 1),
         )
 
-        # Keep the upload areas visually quiet so the selected images carry the focus.
+        # Image cards for face1 and face2
         for i, key in enumerate(["face1", "face2"]):
             card = ctk.CTkFrame(
                 frame,
@@ -210,7 +211,8 @@ class FaceMatchApp:
             text_color=COLOR_TEXT_MUTED,
         )
         self.status_label.grid(row=5, column=0, columnspan=2, pady=(4, 0))
-
+    
+    # Helper methods for image selection
     def _select_image(self, key):
         path = filedialog.askopenfilename(
             filetypes=[("Image files", "*.jpg *.jpeg *.png")]
@@ -219,6 +221,7 @@ class FaceMatchApp:
             return
         self._set_image(key, path)
 
+    # handles the logic for setting the image, showing a preview, and updating the UI accordingly
     def _set_image(self, key, path):
         if not path.lower().endswith((".jpg", ".jpeg", ".png")):
             messagebox.showerror(
@@ -240,13 +243,15 @@ class FaceMatchApp:
             text=self._truncate_filename(filename, label_width),
             text_color=COLOR_TEXT_SECONDARY
         )
-
+    
+    # handles the drag-and-drop event, extracting the file path and calling _set_image to update the UI
     def _on_drop(self, event, key):
         paths = self.root.tk.splitlist(event.data)
         if not paths:
             return
         self._set_image(key, paths[0])
 
+    # resets the application state, clearing selected images and resetting UI elements to their default state
     def _reset(self):
         self.image_paths = {"face1": None, "face2": None}
         for key in ["face1", "face2"]:
@@ -260,7 +265,8 @@ class FaceMatchApp:
             )
         self._update_compare_button_state()
         self.result_label.configure(text="", fg_color="transparent")
-
+    
+    # displays a preview of the selected image in the corresponding label
     def _show_preview(self, key, path):
         try:
             img = Image.open(path)
@@ -289,7 +295,9 @@ class FaceMatchApp:
             )
 
             return False
+    
 
+    # shortens the filename to fit within the specified width, adding an ellipsis if necessary, while ensuring that the text remains readable and does not overflow the label's boundaries
     @staticmethod
     def _truncate_filename(filename, max_width):
         font = tkfont.Font(family=FONT_FAMILY, size=11)
@@ -303,6 +311,7 @@ class FaceMatchApp:
 
         return truncated + suffix if truncated else suffix
 
+    # updates the state of the compare button based on whether both images have been selected, enabling it only when both images are ready for comparison
     def _update_compare_button_state(self):
         ready = all(self.image_paths.values())
         if ready:
@@ -330,7 +339,8 @@ class FaceMatchApp:
             daemon=True,
         )
         thread.start()
-
+    
+    # runs the face comparison in a separate thread to keep the GUI responsive, and schedules the result handling on the main thread
     def _run_compare_in_background(self, path1, path2):
         try:
             result = compare_faces(path1, path2)
@@ -342,7 +352,8 @@ class FaceMatchApp:
             )
 
         self.root.after(0, self._on_compare_finished, result)
-
+    
+    # updates the UI based on the result of the face comparison, displaying whether the faces match and the distance metric
     def _on_compare_finished(self, result):
         self.compare_button.configure(text="Compare faces")
         self.reset_button.configure(state="normal")
@@ -363,5 +374,7 @@ class FaceMatchApp:
                 fg="white",
             )
 
+              
+    # sets the result label's text and background color based on the comparison outcome
     def _set_result(self, text, bg, fg):
         self.result_label.configure(text=text, fg_color=bg, text_color=fg)

@@ -6,7 +6,8 @@ from gui import FaceMatchApp, CTkDnD
 def main(): 
     ctk.set_appearance_mode("light")
     ctk.set_default_color_theme("blue")
-
+    
+    # Create the main application window using CTkDnD, which is a custom Tkinter window with drag-and-drop support.
     root = CTkDnD()
 
     FaceMatchApp(root)
